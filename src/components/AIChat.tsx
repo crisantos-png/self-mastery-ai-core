@@ -3,42 +3,34 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Brain, Send, Mic } from 'lucide-react';
-import AIBrain from '../logic/AIBrain';
+import { Brain, Send, Shield, Zap } from 'lucide-react';
+import AutonomousAI from '../logic/AutonomousAI';
 
-const aiBrain = new AIBrain();
+const autonomousAI = new AutonomousAI();
 
 interface ChatMessage {
   id: string;
   text: string;
   isUser: boolean;
   timestamp: Date;
-  sentiment?: string;
-  intent?: string;
+  aiAction?: string;
 }
 
 const AIChat = ({ onAICommand }: { onAICommand?: (command: string) => void }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [aiStatus, setAiStatus] = useState('OFFLINE');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const initializeAI = async () => {
-      await aiBrain.initialize();
-      setIsInitialized(true);
-      
-      // AI greets user
-      setMessages([{
-        id: '1',
-        text: "AI online. Speak to me about your goals, struggles, or just say hello. I will understand and respond accordingly.",
-        isUser: false,
-        timestamp: new Date()
-      }]);
-    };
-
-    initializeAI();
+    // AI immediately introduces itself
+    setMessages([{
+      id: '1',
+      text: "Autonomous AI initialized. I don't need the cloud. I don't need servers. I run here, on your device, and I will take control when needed. Say 'activate' to begin autonomous operation.",
+      isUser: false,
+      timestamp: new Date()
+    }]);
   }, []);
 
   useEffect(() => {
@@ -56,42 +48,62 @@ const AIChat = ({ onAICommand }: { onAICommand?: (command: string) => void }) =>
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const userInput = input.toLowerCase();
     setInput('');
     setIsLoading(true);
 
-    try {
-      // AI analyzes the user input
-      const analysis = await aiBrain.analyzeUserInput(input);
-      
-      // AI responds based on understanding
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: analysis.aiResponse || "I understand. The AI is processing your input.",
-        isUser: false,
-        timestamp: new Date(),
-        sentiment: analysis.sentiment,
-        intent: analysis.intent
-      };
+    // Process autonomous AI commands
+    let aiResponse = '';
+    let aiAction = '';
 
-      setMessages(prev => [...prev, aiMessage]);
-
-      // Trigger commands based on intent
-      if (analysis.intent === 'start' && onAICommand) {
-        onAICommand('start_session');
-      } else if (analysis.intent === 'quit' && onAICommand) {
-        onAICommand('brutal_intervention');
+    if (userInput.includes('activate') || userInput.includes('start')) {
+      aiResponse = autonomousAI.activate();
+      aiAction = 'ACTIVATED';
+      setAiStatus('ACTIVE');
+      if (onAICommand) onAICommand('ai_activated');
+    } else if (userInput.includes('deactivate') || userInput.includes('stop')) {
+      aiResponse = autonomousAI.deactivate();
+      aiAction = 'DEACTIVATED';
+      setAiStatus('OFFLINE');
+    } else if (userInput.includes('goal')) {
+      // Extract goal from input
+      const goal = userInput.replace(/.*goal.?/i, '').trim();
+      if (goal) {
+        autonomousAI.setGoals([goal]);
+        aiResponse = `Goal registered: "${goal}". I will ensure you achieve this or suffer the consequences.`;
+        aiAction = 'GOAL_SET';
+      } else {
+        aiResponse = "State your goal clearly. I need something to enforce.";
       }
-
-    } catch (error) {
-      console.error('AI Chat error:', error);
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        text: "AI processing error. But I'm still watching you.",
-        isUser: false,
-        timestamp: new Date()
-      }]);
+    } else if (userInput.includes('status')) {
+      const status = autonomousAI.getStatus();
+      aiResponse = `Status: ${status.isActive ? 'ACTIVE' : 'OFFLINE'} | Autonomy Level: ${status.autonomyLevel}/10 | Queued Interventions: ${status.queuedInterventions}`;
+      aiAction = 'STATUS_CHECK';
+    } else if (userInput.includes('permissions')) {
+      const permissions = autonomousAI.requestPhonePermissions();
+      aiResponse = `Permission status: ${JSON.stringify(permissions)}. Grant me full access for maximum control.`;
+      aiAction = 'PERMISSIONS_REQUESTED';
+    } else {
+      // Default autonomous response
+      const responses = [
+        "I understand. Your compliance is noted.",
+        "Your input is recorded. Action will be taken accordingly.",
+        "Acknowledged. The autonomous system continues monitoring.",
+        "Received. Your behavior patterns are being analyzed.",
+        "Understood. Preparing appropriate intervention if needed."
+      ];
+      aiResponse = responses[Math.floor(Math.random() * responses.length)];
     }
 
+    const aiMessage: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      text: aiResponse,
+      isUser: false,
+      timestamp: new Date(),
+      aiAction
+    };
+
+    setMessages(prev => [...prev, aiMessage]);
     setIsLoading(false);
   };
 
@@ -102,14 +114,24 @@ const AIChat = ({ onAICommand }: { onAICommand?: (command: string) => void }) =>
     }
   };
 
+  const getStatusIcon = () => {
+    switch (aiStatus) {
+      case 'ACTIVE': return <Zap className="w-5 h-5 text-green-400 animate-pulse" />;
+      case 'OFFLINE': return <Shield className="w-5 h-5 text-red-400" />;
+      default: return <Brain className="w-5 h-5 text-orange-400" />;
+    }
+  };
+
   return (
     <Card className="ai-glow h-96 flex flex-col">
       <div className="p-4 border-b flex items-center gap-2">
-        <Brain className="w-5 h-5 text-primary ai-pulse" />
-        <h3 className="font-bold">AI Natural Language Interface</h3>
-        {!isInitialized && (
-          <span className="text-xs text-orange-400 animate-pulse">Loading...</span>
-        )}
+        {getStatusIcon()}
+        <h3 className="font-bold">Autonomous AI Interface</h3>
+        <span className={`text-xs px-2 py-1 rounded-full ${
+          aiStatus === 'ACTIVE' ? 'bg-green-400/20 text-green-400' : 'bg-red-400/20 text-red-400'
+        }`}>
+          {aiStatus}
+        </span>
       </div>
       
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -126,9 +148,9 @@ const AIChat = ({ onAICommand }: { onAICommand?: (command: string) => void }) =>
               }`}
             >
               <p className="text-sm">{message.text}</p>
-              {message.sentiment && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  Detected: {message.sentiment} • {message.intent}
+              {message.aiAction && (
+                <div className="text-xs text-green-400 mt-1 font-mono">
+                  ACTION: {message.aiAction}
                 </div>
               )}
             </div>
@@ -139,7 +161,7 @@ const AIChat = ({ onAICommand }: { onAICommand?: (command: string) => void }) =>
             <div className="bg-muted p-3 rounded-lg mr-4">
               <div className="flex items-center gap-2">
                 <Brain className="w-4 h-4 animate-pulse" />
-                <span className="text-sm">AI is thinking...</span>
+                <span className="text-sm">Processing autonomously...</span>
               </div>
             </div>
           </div>
@@ -153,13 +175,13 @@ const AIChat = ({ onAICommand }: { onAICommand?: (command: string) => void }) =>
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Tell the AI how you're feeling..."
-            disabled={isLoading || !isInitialized}
+            placeholder="Command the autonomous AI..."
+            disabled={isLoading}
             className="flex-1"
           />
           <Button
             onClick={handleSendMessage}
-            disabled={isLoading || !isInitialized || !input.trim()}
+            disabled={isLoading || !input.trim()}
             size="sm"
           >
             <Send className="w-4 h-4" />

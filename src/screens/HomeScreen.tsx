@@ -4,66 +4,65 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Brain, Target, Clock, Settings } from 'lucide-react';
+import { Brain, Target, Clock, Settings, Shield, Zap } from 'lucide-react';
 import BrutalCoach from '../logic/BrutalCoach';
 import MemoryLog from '../logic/MemoryLog';
-import AIBrain from '../logic/AIBrain';
+import AutonomousAI from '../logic/AutonomousAI';
 import AIChat from '../components/AIChat';
 
 const coach = new BrutalCoach();
 const memoryLog = new MemoryLog();
-const aiBrain = new AIBrain();
+const autonomousAI = new AutonomousAI();
 
 const HomeScreen = () => {
   const navigate = useNavigate();
   const [motivationalQuote, setMotivationalQuote] = useState('');
-  const [aiStatus, setAiStatus] = useState('INITIALIZING');
+  const [aiStatus, setAiStatus] = useState('OFFLINE');
   const [shouldShowIntervention, setShouldShowIntervention] = useState(false);
   const [idleTime, setIdleTime] = useState(0);
-  const [aiAnalysis, setAiAnalysis] = useState('');
+  const [currentIntervention, setCurrentIntervention] = useState(null);
 
   useEffect(() => {
-    const initializeAI = async () => {
-      // Initialize AI Brain
-      await aiBrain.initialize();
-      setAiStatus('MONITORING');
-      
-      // AI immediately delivers opening statement
-      const quote = coach.coach();
-      setMotivationalQuote(quote);
-      memoryLog.log('app_launched', { quote });
+    // AI immediately delivers opening statement
+    const quote = coach.coach();
+    setMotivationalQuote(quote);
+    memoryLog.log('app_launched', { quote });
 
-      // Get AI behavior analysis
-      const sessions = memoryLog.getAllSessions();
-      const analysis = await aiBrain.analyzeBehaviorPattern(sessions);
-      setAiAnalysis(analysis);
-    };
-
-    initializeAI();
-
-    // AI monitors for idle behavior
-    const intervalId = setInterval(async () => {
+    // Monitor for autonomous AI interventions
+    const intervalId = setInterval(() => {
       const intervention = memoryLog.shouldAIIntervene();
-      const aiIntervention = aiBrain.shouldInterveneBrutal();
+      const aiIntervention = autonomousAI.getCurrentIntervention();
       
       setIdleTime(memoryLog.getIdleTime());
       
-      if ((intervention.shouldIntervene || aiIntervention.shouldIntervene) && !shouldShowIntervention) {
+      if (aiIntervention && !shouldShowIntervention) {
+        setShouldShowIntervention(true);
+        setCurrentIntervention(aiIntervention);
+        setAiStatus('INTERVENTION ACTIVE');
+        autonomousAI.executeIntervention(aiIntervention);
+        memoryLog.log('autonomous_intervention', { 
+          reason: aiIntervention.reason,
+          type: aiIntervention.type,
+          severity: aiIntervention.severity
+        });
+      } else if (intervention.shouldIntervene && !shouldShowIntervention) {
         setShouldShowIntervention(true);
         setAiStatus('INTERVENTION REQUIRED');
-        memoryLog.log('ai_intervention', { 
-          reason: intervention.reason || aiIntervention.reason,
-          aiTriggered: true,
-          brutalityLevel: aiIntervention.brutalityLevel || 7
+        memoryLog.log('manual_intervention', { 
+          reason: intervention.reason,
+          idleMinutes: intervention.idleMinutes
         });
       }
-    }, 10000);
+    }, 15000); // Check every 15 seconds for faster response
 
     return () => clearInterval(intervalId);
   }, [shouldShowIntervention]);
 
   const handleAICommand = (command: string) => {
     switch (command) {
+      case 'ai_activated':
+        setAiStatus('AUTONOMOUS');
+        break;
       case 'start_session':
         handleStartSession();
         break;
@@ -81,20 +80,40 @@ const HomeScreen = () => {
 
   const handleDismissIntervention = () => {
     setShouldShowIntervention(false);
-    setAiStatus('MONITORING');
+    setCurrentIntervention(null);
+    setAiStatus(autonomousAI.getStatus().isActive ? 'AUTONOMOUS' : 'OFFLINE');
     setMotivationalQuote(coach.coach());
+  };
+
+  const getStatusColor = () => {
+    switch (aiStatus) {
+      case 'AUTONOMOUS': return 'text-green-400';
+      case 'INTERVENTION ACTIVE': return 'text-red-400 animate-pulse';
+      case 'BRUTAL MODE ACTIVATED': return 'text-red-600 animate-pulse';
+      default: return 'text-orange-400';
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (aiStatus) {
+      case 'AUTONOMOUS': return <Zap className="w-6 h-6 text-green-400" />;
+      case 'INTERVENTION ACTIVE': return <Shield className="w-6 h-6 text-red-400 animate-pulse" />;
+      default: return <Brain className="w-6 h-6 text-orange-400 ai-pulse" />;
+    }
   };
 
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* AI Status Header */}
+        {/* Autonomous AI Status Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Brain className="w-8 h-8 text-primary ai-pulse" />
+            {getStatusIcon()}
             <div>
               <h1 className="text-2xl font-bold">DisciplineOS</h1>
-              <p className="text-sm text-muted-foreground">AI Status: {aiStatus}</p>
+              <p className={`text-sm ${getStatusColor()}`}>
+                Autonomous AI: {aiStatus}
+              </p>
             </div>
           </div>
           <Button
@@ -111,51 +130,53 @@ const HomeScreen = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column - Traditional Interface */}
           <div className="space-y-6">
-            {/* AI Intervention Alert */}
+            {/* Autonomous AI Intervention Alert */}
             {shouldShowIntervention && (
               <Card className="border-destructive bg-destructive/10 ai-glow">
                 <div className="p-6">
                   <div className="flex items-center gap-3 mb-3">
-                    <Brain className="w-6 h-6 text-destructive animate-pulse" />
-                    <h3 className="text-lg font-bold text-destructive">AI INTERVENTION</h3>
+                    <Shield className="w-6 h-6 text-destructive animate-pulse" />
+                    <h3 className="text-lg font-bold text-destructive">
+                      {currentIntervention ? 'AUTONOMOUS INTERVENTION' : 'AI INTERVENTION'}
+                    </h3>
                   </div>
                   <p className="brutal-text text-destructive mb-4">
-                    You've been idle for {idleTime} minutes. Your procrastination ends now.
+                    {currentIntervention 
+                      ? currentIntervention.message 
+                      : `You've been idle for ${idleTime} minutes. The autonomous system demands action.`}
                   </p>
                   <div className="flex gap-3">
                     <Button 
                       onClick={handleStartSession}
                       className="bg-destructive hover:bg-destructive/80"
                     >
-                      Start Session NOW
+                      Comply Immediately
                     </Button>
                     <Button 
                       variant="outline" 
                       onClick={handleDismissIntervention}
                       className="border-destructive text-destructive"
                     >
-                      Dismiss (Coward)
+                      Resist (Futile)
                     </Button>
                   </div>
                 </div>
               </Card>
             )}
 
-            {/* Motivational Quote */}
+            {/* Motivational Command */}
             <Card className="ai-glow">
               <div className="p-6">
                 <div className="flex items-start gap-4">
                   <Brain className="w-6 h-6 text-primary mt-1 flex-shrink-0" />
                   <div>
-                    <h3 className="text-sm font-semibold text-primary mb-2">AI SAYS:</h3>
+                    <h3 className="text-sm font-semibold text-primary mb-2">AUTONOMOUS AI SAYS:</h3>
                     <p className="brutal-text text-foreground leading-relaxed">
                       "{motivationalQuote}"
                     </p>
-                    {aiAnalysis && (
-                      <p className="text-sm text-muted-foreground mt-3 italic">
-                        Pattern Analysis: {aiAnalysis}
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground mt-3 italic">
+                      System Status: Monitoring your behavior patterns
+                    </p>
                   </div>
                 </div>
               </div>
@@ -166,37 +187,37 @@ const HomeScreen = () => {
               <Card className="hover:ai-glow transition-all cursor-pointer" onClick={handleStartSession}>
                 <div className="p-6 text-center">
                   <Target className="w-8 h-8 text-green-400 mx-auto mb-3" />
-                  <h3 className="font-bold mb-2">Start Focus Session</h3>
-                  <p className="text-sm text-muted-foreground">Begin 25min Pomodoro</p>
+                  <h3 className="font-bold mb-2">Focus Session</h3>
+                  <p className="text-sm text-muted-foreground">25min Pomodoro</p>
                 </div>
               </Card>
 
               <Card className="hover:ai-glow transition-all cursor-pointer" onClick={() => navigate('/logs')}>
                 <div className="p-6 text-center">
                   <Clock className="w-8 h-8 text-blue-400 mx-auto mb-3" />
-                  <h3 className="font-bold mb-2">Session History</h3>
-                  <p className="text-sm text-muted-foreground">View your progress</p>
+                  <h3 className="font-bold mb-2">Behavior Log</h3>
+                  <p className="text-sm text-muted-foreground">AI monitoring data</p>
                 </div>
               </Card>
 
               <Card className="hover:ai-glow transition-all cursor-pointer" onClick={() => navigate('/settings')}>
                 <div className="p-6 text-center">
                   <Settings className="w-8 h-8 text-orange-400 mx-auto mb-3" />
-                  <h3 className="font-bold mb-2">AI Settings</h3>
-                  <p className="text-sm text-muted-foreground">Configure brutality</p>
+                  <h3 className="font-bold mb-2">AI Control</h3>
+                  <p className="text-sm text-muted-foreground">Autonomy settings</p>
                 </div>
               </Card>
             </div>
           </div>
 
-          {/* Right Column - AI Chat Interface */}
+          {/* Right Column - Autonomous AI Interface */}
           <div className="space-y-6">
             <AIChat onAICommand={handleAICommand} />
             
-            {/* Today's Stats */}
+            {/* Performance Metrics */}
             <Card>
               <div className="p-6">
-                <h3 className="font-bold mb-4">Today's Performance</h3>
+                <h3 className="font-bold mb-4">Performance Under AI Supervision</h3>
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
                     <div className="text-2xl font-bold text-green-400">
@@ -208,7 +229,7 @@ const HomeScreen = () => {
                     <div className="text-2xl font-bold text-red-400">
                       {memoryLog.getTodayEvents().filter(e => e.event === 'session_abandoned').length}
                     </div>
-                    <div className="text-sm text-muted-foreground">Abandoned</div>
+                    <div className="text-sm text-muted-foreground">Failed</div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-blue-400">{idleTime}m</div>
