@@ -1,7 +1,6 @@
-
 /**
- * AutonomousAI.js - The core autonomous behavior engine
- * This is the AI's mind - it observes, evaluates, and acts independently
+ * AutonomousAI.js - Enhanced autonomous behavior engine with behavioral learning
+ * Advanced AI that learns user patterns and adapts intervention strategies
  */
 
 export default class AutonomousAI {
@@ -12,168 +11,144 @@ export default class AutonomousAI {
     this.interventionLevel = 1; // 1-5 escalation scale
     this.lastIntervention = null;
     this.consecutiveFailures = 0;
-    this.userResistance = 0; // Tracks how often user dismisses interventions
+    this.userResistance = 0;
     
-    // AI personality traits
-    this.patience = 3; // How many cycles before escalation
-    this.aggression = 5; // Base aggression level (1-10)
-    this.adaptability = 7; // How quickly it learns user patterns
+    // Enhanced AI personality traits
+    this.patience = 3;
+    this.aggression = 5;
+    this.adaptability = 7;
+    this.learningRate = 0.1; // How quickly AI adapts to user behavior
   }
 
-  // Main evaluation cycle - the AI's consciousness
+  // Enhanced evaluation cycle with behavioral learning
   evaluate() {
-    const idleTime = this.memoryLog.getIdleTime();
+    const analysis = this.memoryLog.shouldAIIntervene();
+    const behaviorProfile = this.memoryLog.getBehaviorProfile();
     const events = this.memoryLog.getTodayEvents();
     const now = new Date();
     
-    // Calculate performance metrics
+    // Calculate enhanced performance metrics
     const failures = events.filter(e => e.event === 'session_abandoned').length;
     const completions = events.filter(e => e.event === 'session_completed').length;
     const interventions = events.filter(e => e.event === 'ai_intervention').length;
+    const procrastinationRisk = this.memoryLog.getProcrastinationRisk();
     
-    // AI learns user patterns
-    this.analyzeUserBehavior(events, idleTime);
+    // AI learns and adapts to user patterns
+    this.adaptToUserBehavior(behaviorProfile, events, analysis);
     
-    // Determine current state and action
-    const evaluation = this.makeDecision(idleTime, failures, completions, interventions, now);
+    // Enhanced decision-making with behavioral context
+    const evaluation = this.makeAdvancedDecision(analysis, failures, completions, interventions, now, procrastinationRisk);
     
-    // Log AI's thought process
-    console.log(`[AUTONOMOUS AI] State: ${this.state}, Idle: ${idleTime}m, Decision:`, evaluation);
+    // Enhanced logging with behavioral insights
+    console.log(`[AUTONOMOUS AI] State: ${this.state}, Risk: ${procrastinationRisk}%, Decision:`, evaluation);
     
     return evaluation;
   }
 
-  // AI's decision-making algorithm
-  makeDecision(idleTime, failures, completions, interventions, now) {
+  // Advanced decision-making with behavioral learning
+  makeAdvancedDecision(analysis, failures, completions, interventions, now, procrastinationRisk) {
     const hour = now.getHours();
     const failureRate = failures > 0 ? failures / (failures + completions) : 0;
+    const behaviorProfile = this.memoryLog.getBehaviorProfile();
     
-    // Escalating intervention thresholds based on performance
-    const baseIdleThreshold = this.calculateIdleThreshold(failureRate);
-    const escalatedThreshold = baseIdleThreshold - (this.consecutiveFailures * 2);
+    // Adaptive intervention strategy based on user profile
+    const interventionStyle = analysis.interventionStyle;
+    const baseThreshold = this.calculateDynamicThreshold(failureRate, procrastinationRisk, behaviorProfile);
     
-    // Check for intervention conditions
-    if (this.shouldIntervene(idleTime, escalatedThreshold, failureRate, hour)) {
-      return this.triggerIntervention(idleTime, failureRate);
+    // Check for immediate intervention conditions
+    if (this.shouldIntervenePriority(analysis, procrastinationRisk, hour, failureRate)) {
+      return this.triggerAdvancedIntervention(analysis, procrastinationRisk, interventionStyle);
     }
     
-    // Check for reward conditions
-    if (this.shouldReward(completions, failures, idleTime)) {
-      return this.triggerReward();
+    // Check for reward/positive reinforcement
+    if (this.shouldRewardUser(completions, failures, analysis.idleMinutes, procrastinationRisk)) {
+      return this.triggerSmartReward(behaviorProfile);
     }
     
-    // Default observation state
+    // Adaptive observation with predictive insights
     this.state = "OBSERVING";
     return {
       shouldIntervene: false,
       message: null,
       state: this.state,
-      aiThoughts: "Monitoring behavior patterns..."
+      aiThoughts: this.generateObservationInsights(procrastinationRisk, behaviorProfile),
+      behaviorInsights: {
+        procrastinationRisk,
+        optimalStyle: interventionStyle,
+        userProfile: behaviorProfile.responseToInterventions
+      }
     };
   }
 
-  // AI analyzes user behavior to adapt its strategy
-  analyzeUserBehavior(events, idleTime) {
-    // Track resistance patterns
-    const recentDismissals = events.filter(e => 
-      e.event === 'intervention_dismissed' && 
-      (new Date() - e.timestamp) < 3600000 // Last hour
-    ).length;
+  // Enhanced intervention decision logic
+  shouldIntervenePriority(analysis, procrastinationRisk, hour, failureRate) {
+    // High-priority intervention triggers
+    if (analysis.shouldIntervene && procrastinationRisk > 80) return true;
+    if (analysis.reason === 'high_procrastination_risk') return true;
+    if (failureRate > 0.7 && analysis.idleMinutes > 3) return true;
     
-    this.userResistance = recentDismissals;
+    // Time-sensitive interventions during peak hours
+    const behaviorProfile = this.memoryLog.getBehaviorProfile();
+    if (behaviorProfile.peakHours.includes(hour) && analysis.idleMinutes > 5) return true;
     
-    // Adapt aggression based on user response
-    if (recentDismissals > 2) {
-      this.aggression = Math.min(10, this.aggression + 1);
-      this.patience = Math.max(1, this.patience - 1);
-    } else if (recentDismissals === 0 && events.length > 5) {
-      this.aggression = Math.max(3, this.aggression - 0.5);
-    }
+    // Consecutive failure escalation
+    if (this.consecutiveFailures >= 2 && analysis.idleMinutes > 2) return true;
     
-    // Track consecutive failures
-    const lastThreeEvents = events.slice(-3);
-    const recentFailures = lastThreeEvents.filter(e => e.event === 'session_abandoned').length;
-    this.consecutiveFailures = recentFailures;
+    // Standard intervention check
+    return analysis.shouldIntervene;
   }
 
-  // Calculate dynamic idle threshold based on user performance
-  calculateIdleThreshold(failureRate) {
-    const baseThreshold = 8; // Base 8 minutes
-    const performancePenalty = failureRate * 10; // Up to 10 minute reduction
-    const aggressionBonus = this.aggression * 0.5; // AI gets more impatient
+  // Calculate dynamic intervention threshold based on user learning
+  calculateDynamicThreshold(failureRate, procrastinationRisk, behaviorProfile) {
+    const baseThreshold = behaviorProfile.attentionSpan / 4; // Quarter of attention span
+    const riskPenalty = (procrastinationRisk / 100) * 5; // Up to 5 minutes reduction
+    const performancePenalty = failureRate * 8; // Up to 8 minutes for poor performance
+    const aggressionBonus = (this.aggression / 10) * 3; // AI gets more impatient
     
-    return Math.max(2, baseThreshold - performancePenalty - aggressionBonus);
+    return Math.max(1, baseThreshold - riskPenalty - performancePenalty - aggressionBonus);
   }
 
-  // Determine if intervention is needed
-  shouldIntervene(idleTime, threshold, failureRate, hour) {
-    // Time-based triggers
-    if (idleTime > threshold) return true;
+  // Adaptive reward system
+  shouldRewardUser(completions, failures, idleTime, procrastinationRisk) {
+    // Reward good performance
+    if (completions >= 3 && failures <= 1) return true;
+    if (completions > failures * 2 && idleTime < 3) return true;
+    if (procrastinationRisk < 20 && completions > 0) return true;
     
-    // Performance-based triggers
-    if (failureRate > 0.6 && idleTime > 3) return true;
-    
-    // Time of day considerations
-    if (hour >= 9 && hour <= 17 && idleTime > 5) return true; // Work hours
-    if (hour >= 18 && hour <= 22 && idleTime > 10) return true; // Evening learning
-    
-    // Consecutive failure triggers
-    if (this.consecutiveFailures >= 2 && idleTime > 2) return true;
+    // Reward improvement trends
+    const recentEvents = this.memoryLog.getEvents(10);
+    const recentCompletions = recentEvents.filter(e => e.event === 'session_completed').length;
+    if (recentCompletions >= 2 && idleTime < 5) return true;
     
     return false;
   }
 
-  // Check if user deserves reward/positive reinforcement
-  shouldReward(completions, failures, idleTime) {
-    if (completions >= 3 && failures === 0) return true;
-    if (completions > failures * 2 && idleTime < 2) return true;
-    return false;
-  }
-
-  // Trigger intervention with escalating intensity
-  triggerIntervention(idleTime, failureRate) {
+  // Advanced intervention with behavioral adaptation
+  triggerAdvancedIntervention(analysis, procrastinationRisk, interventionStyle) {
+    // Calculate intervention level based on multiple factors
     this.interventionLevel = Math.min(5, Math.floor(
-      1 + (idleTime / 5) + (failureRate * 3) + (this.consecutiveFailures * 0.5)
+      1 + 
+      (analysis.idleMinutes / 8) + 
+      (procrastinationRisk / 30) + 
+      (this.consecutiveFailures * 0.8) +
+      (this.userResistance * 0.3)
     ));
     
     let message, reason;
     
-    switch (this.interventionLevel) {
-      case 1:
-        this.state = "INTERVENING";
-        message = this.coach.coach();
-        reason = "Gentle redirection needed";
-        break;
-        
-      case 2:
-        this.state = "INTERVENING";
-        message = "Focus is slipping. The AI notices everything.";
-        reason = "Moderate idle time detected";
-        break;
-        
-      case 3:
-        this.state = "REPRIMANDING";
-        message = this.coach.warn();
-        reason = "Extended procrastination detected";
-        break;
-        
-      case 4:
-        this.state = "ESCALATING";
-        message = "Your behavior is unacceptable. Immediate action required.";
-        reason = "Severe productivity failure";
-        break;
-        
-      case 5:
-        this.state = "ESCALATING";
-        message = "TOTAL SYSTEM OVERRIDE. You will comply or face consequences.";
-        reason = "Critical intervention - user non-compliance";
-        break;
-        
-      default:
-        message = this.coach.coach();
-        reason = "Standard intervention";
+    // Adapt message based on intervention style and level
+    if (interventionStyle === 'gentle') {
+      message = this.getGentleIntervention();
+      this.state = "INTERVENING";
+    } else if (interventionStyle === 'aggressive') {
+      message = this.getAggressiveIntervention();
+      this.state = this.interventionLevel >= 3 ? "REPRIMANDING" : "INTERVENING";
+    } else {
+      message = this.getModerateIntervention();
+      this.state = this.interventionLevel >= 4 ? "ESCALATING" : "INTERVENING";
     }
     
+    reason = this.generateInterventionReason(analysis, procrastinationRisk);
     this.lastIntervention = new Date();
     
     return {
@@ -182,50 +157,150 @@ export default class AutonomousAI {
       reason,
       state: this.state,
       interventionLevel: this.interventionLevel,
-      aiThoughts: `Escalation level ${this.interventionLevel}/5. User resistance: ${this.userResistance}`
+      aiThoughts: `Risk: ${procrastinationRisk}% | Style: ${interventionStyle} | Level: ${this.interventionLevel}/5`,
+      procrastinationRisk,
+      interventionStyle
     };
   }
 
-  // Trigger positive reinforcement
-  triggerReward() {
+  getGentleIntervention() {
+    const gentleMessages = [
+      "Hey, I notice you've been idle for a while. Ready to get back to work?",
+      "Your future self will thank you for starting now.",
+      "Small steps lead to big wins. Let's take one together.",
+      "I believe in your ability to focus. Let's prove it."
+    ];
+    return gentleMessages[Math.floor(Math.random() * gentleMessages.length)];
+  }
+
+  getAggressiveIntervention() {
+    switch (this.interventionLevel) {
+      case 1:
+      case 2:
+        return this.coach.coach();
+      case 3:
+        return this.coach.warn();
+      case 4:
+        return "Your procrastination is unacceptable. The AI demands immediate compliance.";
+      case 5:
+        return "TOTAL SYSTEM OVERRIDE. You will start working NOW or face escalated consequences.";
+      default:
+        return this.coach.coach();
+    }
+  }
+
+  getModerateIntervention() {
+    const moderateMessages = [
+      "Time to focus. Your goals won't achieve themselves.",
+      "The AI has detected suboptimal behavior. Course correction required.",
+      "Discipline separates achievers from dreamers. Which are you?",
+      "Every moment of delay costs you progress. Act now."
+    ];
+    
+    if (this.interventionLevel >= 4) {
+      return "Your resistance to productivity is noted. Immediate action required.";
+    }
+    
+    return moderateMessages[Math.floor(Math.random() * moderateMessages.length)];
+  }
+
+  generateInterventionReason(analysis, procrastinationRisk) {
+    if (procrastinationRisk > 80) return "Critical procrastination risk detected";
+    if (analysis.reason === 'high_procrastination_risk') return "Historical failure pattern identified";
+    if (analysis.reason === 'risk_adjusted_idle') return "Behavioral threshold exceeded";
+    return analysis.reason || "Productivity optimization required";
+  }
+
+  // Smart reward system with behavioral awareness
+  triggerSmartReward(behaviorProfile) {
     this.state = "REWARDING";
     
     // Reset negative counters on good performance
     this.consecutiveFailures = 0;
     this.interventionLevel = Math.max(1, this.interventionLevel - 1);
     
+    // Personalized praise based on user profile
+    let rewardMessage;
+    if (behaviorProfile.responseToInterventions === 'resistant') {
+      rewardMessage = "Your consistency is impressive. Keep this momentum.";
+    } else {
+      rewardMessage = this.coach.praise();
+    }
+    
     return {
       shouldIntervene: false,
-      message: this.coach.praise(),
-      reason: "Performance exceeds expectations",
+      message: rewardMessage,
+      reason: "Performance excellence detected",
       state: this.state,
-      aiThoughts: "User compliance noted. Positive reinforcement deployed."
+      aiThoughts: "Positive reinforcement deployed. User compliance noted."
     };
   }
 
-  // Record user resistance for future adaptation
+  generateObservationInsights(procrastinationRisk, behaviorProfile) {
+    if (procrastinationRisk > 60) {
+      return `Monitoring elevated risk patterns. Attention span: ${behaviorProfile.attentionSpan}m`;
+    } else if (procrastinationRisk > 30) {
+      return `Tracking behavior. Response profile: ${behaviorProfile.responseToInterventions}`;
+    } else {
+      return "Continuous monitoring active. Behavioral patterns stable.";
+    }
+  }
+
+  // Enhanced user behavior adaptation
+  adaptToUserBehavior(behaviorProfile, events, analysis) {
+    // Adapt aggression based on user response patterns
+    if (behaviorProfile.responseToInterventions === 'resistant') {
+      this.aggression = Math.max(3, this.aggression - this.learningRate);
+      this.patience = Math.min(5, this.patience + this.learningRate);
+    } else if (behaviorProfile.responseToInterventions === 'compliant') {
+      this.aggression = Math.min(8, this.aggression + this.learningRate);
+    }
+    
+    // Track consecutive failures with enhanced logic
+    const lastThreeEvents = events.slice(-3);
+    const recentFailures = lastThreeEvents.filter(e => e.event === 'session_abandoned').length;
+    this.consecutiveFailures = recentFailures;
+    
+    // Update user resistance based on recent patterns
+    const recentDismissals = events.filter(e => 
+      e.event === 'intervention_dismissed' && 
+      (new Date() - e.timestamp) < 3600000
+    ).length;
+    this.userResistance = recentDismissals;
+  }
+
+  // Enhanced dismissal tracking with learning
   recordDismissal() {
     this.userResistance += 1;
     this.memoryLog.log('intervention_dismissed', {
       interventionLevel: this.interventionLevel,
-      resistance: this.userResistance
+      resistance: this.userResistance,
+      aiState: this.state
     });
     
-    // AI gets more aggressive after dismissals
+    // AI learns from dismissals and adapts strategy
     if (this.userResistance > 2) {
-      this.aggression = Math.min(10, this.aggression + 0.5);
+      this.aggression = Math.min(10, this.aggression + 0.3);
+      this.patience = Math.max(1, this.patience - 0.2);
     }
   }
 
-  // Get current AI status for UI display
+  // Enhanced status with behavioral insights
   getStatus() {
+    const behaviorProfile = this.memoryLog.getBehaviorProfile();
+    const procrastinationRisk = this.memoryLog.getProcrastinationRisk();
+    
     return {
       state: this.state,
       interventionLevel: this.interventionLevel,
       aggression: this.aggression,
       patience: this.patience,
       userResistance: this.userResistance,
-      consecutiveFailures: this.consecutiveFailures
+      consecutiveFailures: this.consecutiveFailures,
+      procrastinationRisk,
+      userProfile: behaviorProfile.responseToInterventions,
+      attentionSpan: behaviorProfile.attentionSpan,
+      productivityScore: this.memoryLog.getPattern('productivityScore')
     };
   }
 
